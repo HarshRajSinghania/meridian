@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - "site/**"
+      - "web/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -35,6 +36,17 @@ jobs:
       # the data file it ships with.
       - name: Check the page's arithmetic against the Python export
         run: node --test site/tests/*.test.mjs
+      # The results dashboard (React + TypeScript) is built from web/ and served at
+      # /dashboard/ beside the static showcase page.
+      - name: Build the dashboard
+        working-directory: web
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+      - name: Add the dashboard to the site
+        run: cp -r web/dist site/dashboard
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

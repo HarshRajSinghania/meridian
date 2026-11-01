@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Meridian — agent evals for CI</title>
-  <meta name="description" content="Meridian gates pull requests on agent regressions: isolated trials, host-side grading, pass^k, a paired significance test, and a minimum detectable effect on every verdict. Every number on this page comes from a real run.">
+  <meta name="description" content="Meridian gates pull requests on agent regressions: isolated trials, host-side grading, pass^k, a paired significance test, and a minimum detectable effect on every verdict. Every number on this page comes from a real run of the gate against a deterministic stand-in model, not a live LLM.">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f5f2ea" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#12130f" media="(prefers-color-scheme: dark)">
@@ -34,6 +34,8 @@
           <li><a href="#passk">pass^k</a></li>
           <li><a href="#isolation">Isolation</a></li>
           <li><a href="#self">Self-measurement</a></li>
+          <li><a href="#realmodels">Real models</a></li>
+          <li><a href="dashboard/">Dashboard</a></li>
           <li><a href="#run">Run it</a></li>
           <li><a href="https://github.com/patsypppe/meridian">GitHub</a></li>
         </ul>
@@ -69,7 +71,7 @@
     <div class="wrap">
       <dl class="readouts" aria-label="Meridian measured by Meridian">
         <div class="readout">
-          <dt class="label">False regressions</dt>
+          <dt class="label">False regressions <small>(simulated model)</small></dt>
           <dd><div class="figure" data-bind="se-false">—</div>
             <p>unchanged agent gated against a fixed baseline. The gate never cried wolf.</p></dd>
         </div>
@@ -89,6 +91,7 @@
             <p>passes with isolation on, fails without it. <a href="#probe">A probe that cannot fail proves nothing.</a></p></dd>
         </div>
       </dl>
+      <p class="muted" style="margin-top:.75rem">These readouts come from a deterministic stand-in model, not a live LLM: they show the gate's statistics behave as designed, not how a real agent performs. <a href="#realmodels">Real-model runs are below.</a></p>
     </div>
   </header>
 
@@ -382,7 +385,7 @@
         <div class="section-head">
           <span class="no">§ 06</span>
           <h2 id="self-h">Meridian, measured by Meridian</h2>
-          <p class="kicker">A harness that cannot measure itself has no standing to measure anything else. These numbers are <a href="https://github.com/patsypppe/meridian/blob/main/benchmarks/self-eval.json"><code>benchmarks/self-eval.json</code></a>, from 46 real gate runs.</p>
+          <p class="kicker">A harness that cannot measure itself has no standing to measure anything else. These numbers are <a href="https://github.com/patsypppe/meridian/blob/main/benchmarks/self-eval.json"><code>benchmarks/self-eval.json</code></a>, from 46 real gate runs <strong>against a deterministic stand-in model</strong>, so they test the statistics, not a real agent.</p>
         </div>
 
         <div class="selfeval reveal" data-bind="selfeval"></div>
@@ -393,10 +396,25 @@
         </div>
       </section>
 
-      <!-- §07 run -->
-      <section class="section" id="run" aria-labelledby="run-h">
+      <!-- §07 real models -->
+      <section class="section" id="realmodels" aria-labelledby="real-h">
         <div class="section-head">
           <span class="no">§ 07</span>
+          <h2 id="real-h">Real models, real benchmarks</h2>
+          <p class="kicker">Early, small and honest. Nothing here is a leaderboard score.</p>
+        </div>
+        <div class="reveal">
+          <p><strong>Real-model runs.</strong> The same seven-task suite on an open model (gpt-oss-20b, served by Groq) passed 17 of 70 trials in one run and 9 of 70 in another. That spread is a finding: a single run of a small suite should not be trusted, which is why every verdict carries the smallest effect it could have detected.</p>
+          <p><strong>A provider failure is not an agent failure.</strong> Rate limits used to be scored as the agent failing. The proxy now retries with bounded, jittered backoff, records the provider&rsquo;s own explanation, and tags every infrastructure error with a cause, so a throttled trial is excluded and retried instead of blamed on the model.</p>
+          <p><strong>Established benchmarks.</strong> <code>meridian import-harbor</code> reads Harbor&rsquo;s task format. On Terminal-Bench 2.0, 66 of 89 tasks convert and 23 are refused with a reason (their verifier installs packages at test time). A converted task ran end to end on a real model and was graded by Harbor&rsquo;s own verifier. <em>A Terminal-Bench slice has not been run yet, so no score is claimed.</em></p>
+          <p><a class="btn primary" href="dashboard/">Open the results dashboard <span aria-hidden="true">&rarr;</span></a> &nbsp; Drop a <code>result.json</code> in; everything runs in your browser.</p>
+        </div>
+      </section>
+
+      <!-- §08 run -->
+      <section class="section" id="run" aria-labelledby="run-h">
+        <div class="section-head">
+          <span class="no">§ 08</span>
           <h2 id="run-h">Run it yourself</h2>
           <p class="kicker">Python 3.12+, <a href="https://docs.astral.sh/uv/">uv</a> and Docker. No API key: every run on this page talked to a deterministic stand-in provider behind the proxy.</p>
         </div>

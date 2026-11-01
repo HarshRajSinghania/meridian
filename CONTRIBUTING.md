@@ -46,6 +46,23 @@ The run manifest is the reproducibility contract. If you change what goes into i
 canonicalized, update `tests/fixtures/golden-manifest.json` and its hash file in the same commit, and say
 in the PR description why the old manifests are no longer replayable.
 
+## The dashboard (`web/`)
+
+```bash
+cd web && npm ci
+npm run typecheck && npm test && npm run build
+```
+
+Its TypeScript statistics mirror `stats/passk.py` and `stats/intervals.py`. If you change either
+Python module, run `uv run python -m benchmarks.export_web_vectors` and commit the regenerated
+`web/src/__fixtures__/stats-vectors.json`; a Python test fails if it is stale, and the TypeScript
+tests fail if the two implementations disagree.
+
+## Adapting other people's code
+
+Say where it came from, keep its license notice, list what you changed in the file header, and add it
+to `THIRD_PARTY_NOTICES.md`.
+
 ## Commit messages
 
 Present tense, and say what changed rather than which files moved. `gate: block on tolerance and

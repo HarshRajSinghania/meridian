@@ -61,10 +61,24 @@ make integration   # Docker-backed tests
 make sweep         # remove leaked trial containers
 ```
 
-## Out of scope for the MVP — do not build
+## Out of scope — do not build
 
-LLM-as-judge (needs a calibration workflow and 30 human labels first), the
-two-axis result cache (nothing expensive to memoize with deterministic graders —
-ship the key derivation only), error-analysis workspace, drift detection,
-multi-tenancy enforcement, a web UI beyond a static HTML report, and any adapter
+LLM-as-judge (needs a calibration workflow and 30 human labels first), the two-axis result cache
+(nothing expensive to memoize with deterministic graders — ship the key derivation only),
+error-analysis workspace, drift detection, multi-tenancy enforcement, hosted runs, and any adapter
 beyond LangGraph plus the trivial subprocess one.
+
+Since the MVP, these exist and are in scope to maintain: the OpenAI-compatible proxy upstream, error
+causes on harness errors, `meridian import-harbor` and `suite build-images`, the terminal agent
+(`fixtures/terminal_agent`, a LangGraph graph), the `verifier_script` assertion and grader-only
+files, and the static dashboard in `web/`. The four rules apply to all of them: in particular a
+provider failure is never scored as an agent failure, and an assertion that cannot be evaluated is a
+harness error, never a pass.
+
+## Two things that look like shortcuts and are not
+
+- Anything copied or ported from another project keeps its license notice and goes in
+  `THIRD_PARTY_NOTICES.md`.
+- The dashboard's TypeScript statistics must match the Python ones. Change `stats/passk.py` or
+  `stats/intervals.py` and you must re-run `uv run python -m benchmarks.export_web_vectors`; a test
+  fails if the committed vectors are stale.
