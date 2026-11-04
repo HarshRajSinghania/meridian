@@ -12,6 +12,7 @@ from pathlib import Path
 import typer
 
 from meridian import exit_codes
+from meridian.assets import MissingAssetError, resolve_sut, write_proxy_build_context
 from meridian.docker_client import DockerUnavailableError, get_client
 from meridian.snapshots.build import (
     SnapshotBuildError,
@@ -232,6 +233,30 @@ def import_harbor(
     err(f"wrote {len(converted)} task(s) to {out_dir}; build their images before running")
 
 
+@app.command()
+def setup() -> None:
+    """Build the model-proxy image from the installed package.
+
+    Run once after `pip install meridian-eval`. Inside a repository checkout,
+    `make images` does the same and also builds the reference suite's image.
+    """
+    import tempfile
+
+    from meridian.runtime.proxy.session import PROXY_IMAGE_TAG
+
+    try:
+        client = get_client()
+        with tempfile.TemporaryDirectory(prefix="meridian-proxy-ctx-") as tmp:
+            context = Path(tmp)
+            env_dir = write_proxy_build_context(context)
+            digest = build_snapshot(client, env_dir, tag=PROXY_IMAGE_TAG, context=context)
+    except (DockerUnavailableError, SnapshotBuildError, MissingAssetError) as exc:
+        err(f"setup failed: {exc}")
+        raise typer.Exit(exit_codes.HARNESS_ERROR) from exc
+    err(f"built {PROXY_IMAGE_TAG} for {current_platform()}")
+    out(digest)
+
+
 @snapshot_app.command("build")
 def snapshot_build(
     path: Path = typer.Argument(..., help="Path to the environment directory."),
@@ -353,7 +378,7 @@ def suite_audit(
             suite=rigged,
             config=config,
             cassette_dir=default_cassette_dir(rigged, None),
-            sut_root=sut.resolve() if sut else None,
+            sut_root=resolve_sut(sut),
             mode=RunMode.EXPLORATORY,
             include_probes=False,
             use_stub_provider=True,
@@ -506,7 +531,7 @@ def run(
         suite=loaded,
         config=config,
         cassette_dir=default_cassette_dir(loaded, cassettes),
-        sut_root=sut.resolve() if sut else None,
+        sut_root=resolve_sut(sut),
         mode=mode,
         include_probes=include_probes,
         use_stub_provider=not live_provider,
@@ -689,7 +714,7 @@ def gate(
             suite=loaded,
             config=config,
             cassette_dir=default_cassette_dir(loaded, cassettes),
-            sut_root=sut_root.resolve(),
+            sut_root=resolve_sut(sut_root),
             mode=RunMode.GATE,
             use_stub_provider=not live_provider,
             repo_root=repo_root,
@@ -885,7 +910,7 @@ def replay(
         suite=loaded,
         config=config,
         cassette_dir=default_cassette_dir(loaded, cassettes),
-        sut_root=sut.resolve() if sut else None,
+        sut_root=resolve_sut(sut),
         # The same run id reproduces the same derived seeds.
         run_id=run_id,
         progress=err,

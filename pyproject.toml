@@ -1,11 +1,26 @@
 [project]
-name = "meridian"
-version = "0.1.0"
-description = "Agent evaluation harness with per-trial isolation, outcome grading, pass^k statistics, and a reproducible CI gate."
-readme = "README.md"
+# The import name stays `meridian`; `meridian` itself is taken on PyPI.
+name = "meridian-eval"
+dynamic = ["version", "readme"]
+description = "A CI gate for AI agents: isolated trials, outcome grading, pass^k with honest intervals, and a verdict that says what it could not detect."
 requires-python = ">=3.12,<3.14"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
 authors = [{ name = "Pranav T Pattanashetty" }]
+keywords = ["llm", "agents", "evaluation", "evals", "benchmark", "ci", "pass^k", "docker"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
 
 dependencies = [
     "typer>=0.15",
@@ -25,6 +40,12 @@ dependencies = [
     "sqlalchemy>=2.0.52",
 ]
 
+[project.urls]
+Homepage = "https://patsypppe.github.io/meridian/"
+Source = "https://github.com/patsypppe/meridian"
+Dashboard = "https://patsypppe.github.io/meridian/dashboard/"
+Changelog = "https://github.com/patsypppe/meridian/blob/main/CHANGELOG.md"
+
 [project.scripts]
 meridian = "meridian.cli:app"
 
@@ -40,11 +61,47 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27", "hatch-fancy-pypi-readme>=24.1"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/meridian/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/meridian"]
+
+# Runtime files that live outside the package in the repository. Copied in at
+# build time so a checkout and a wheel share one source of truth (see assets.py).
+[tool.hatch.build.targets.wheel.force-include]
+"envs/proxy/Dockerfile" = "meridian/_assets/proxy.Dockerfile"
+"fixtures/terminal_agent" = "meridian/_assets/agents/terminal_agent"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/meridian",
+    "envs/proxy/Dockerfile",
+    "fixtures/terminal_agent",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+]
+
+# PyPI renders the README outside the repository, where relative links break.
+# Rewrite them to absolute GitHub URLs at build time; the README itself is unchanged.
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\((?!https?://|#|mailto:)(docs/[^)]+\.(?:png|svg|jpg))\)'
+replacement = '](https://raw.githubusercontent.com/patsypppe/meridian/main/\1)'
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\]\((?!https?://|#|mailto:)([^)\s]+)\)'
+replacement = '](https://github.com/patsypppe/meridian/blob/main/\1)'
 
 [tool.ruff]
 line-length = 100

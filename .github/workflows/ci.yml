@@ -49,6 +49,38 @@ jobs:
       - name: production build
         run: npm run build
 
+  package:
+    name: package (wheel installs and works outside the repo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Build sdist and wheel
+        run: |
+          uv build
+          uvx twine check --strict dist/*
+      # Install into a clean environment and work from outside the checkout, so
+      # nothing can quietly come from the repository instead of the package.
+      - name: Install the wheel into a fresh environment
+        run: |
+          cd "$RUNNER_TEMP"
+          uv venv --python 3.13 venv
+          uv pip install --python venv/bin/python "$GITHUB_WORKSPACE"/dist/*.whl
+          venv/bin/meridian version
+      - name: meridian setup builds the proxy image from the installed package
+        run: cd "$RUNNER_TEMP" && venv/bin/meridian setup
+      - name: Import and build a benchmark task from the installed CLI
+        run: |
+          cd "$RUNNER_TEMP"
+          mkdir -p tasks/hello/environment tasks/hello/tests
+          printf '[task]\nname = "smoke/hello"\n[agent]\ntimeout_sec = 60\n' > tasks/hello/task.toml
+          echo 'Write hello to /app/out.txt' > tasks/hello/instruction.md
+          printf 'FROM python:3.13-slim\nWORKDIR /app\n' > tasks/hello/environment/Dockerfile
+          printf '#!/bin/bash\necho 1 > /logs/verifier/reward.txt\n' > tasks/hello/tests/test.sh
+          venv/bin/meridian import-harbor tasks --out suites/smoke
+          venv/bin/meridian suite build-images suites/smoke
+          venv/bin/meridian suite publish suites/smoke
+
   integration:
     name: integration (docker)
     runs-on: ubuntu-latest

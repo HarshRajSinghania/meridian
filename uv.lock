@@ -399,8 +399,7 @@ wheels = [
 ]
 
 [[package]]
-name = "meridian"
-version = "0.1.0"
+name = "meridian-eval"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },

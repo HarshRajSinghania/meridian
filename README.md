@@ -179,7 +179,33 @@ tasks went from working sometimes to never working at all.
 
 ---
 
-## Quickstart
+## Install
+
+Requires Python 3.12 or 3.13 and Docker.
+
+```bash
+pip install meridian-eval          # or: uv tool install meridian-eval
+meridian setup                     # one-time: builds the model-proxy image
+```
+
+The PyPI name is `meridian-eval` (plain `meridian` is taken); the command and the import are both
+`meridian`. Until the first PyPI release is out, install straight from GitHub:
+`pip install "git+https://github.com/patsypppe/meridian"`.
+
+An installed `meridian` can import benchmarks, build their images and run them with the bundled
+terminal agent, with no repository checkout:
+
+```bash
+meridian import-harbor ./path/to/harbor-tasks --out suites/mine --rewrite-uv-boilerplate
+meridian suite build-images suites/mine --drop-failed
+meridian run --suite suites/mine --proxy-mode record --live-provider --n 5 --k 3
+```
+
+One caveat: two unrelated PyPI packages, `meridian` and `google-meridian`, also import as
+`meridian`, so do not install either into the same environment. `uv tool install` keeps Meridian in
+its own environment, which avoids the clash.
+
+## Quickstart (from a checkout)
 
 Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), and Docker.
 

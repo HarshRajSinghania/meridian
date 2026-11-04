@@ -9,4 +9,4 @@ from meridian import __version__
 
 @pytest.mark.unit
 def test_version_is_exported() -> None:
-    assert __version__ == "0.1.0"
+    assert __version__ == "0.2.0"
