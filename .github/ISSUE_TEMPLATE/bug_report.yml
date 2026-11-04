@@ -1,0 +1,56 @@
+name: Bug report
+description: Something Meridian did that it should not have, or did not do that it should.
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. One thing that saves a round trip: say whether **the harness itself**
+        failed (exit code 2, or a `harness_error` trial) or **the agent under test** got a result you
+        think is wrong. Those are different problems.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The smallest command or suite that shows it. Paste output as text, not screenshots.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: "`meridian version`"
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How Meridian is installed
+      options:
+        - pip / uv tool install meridian-eval
+        - from a git clone (uv sync)
+        - other
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Proxy mode
+      options: ["replay", "record", "passthrough", "not relevant"]
+  - type: input
+    id: env
+    attributes:
+      label: OS, Python and Docker versions
+      placeholder: "Ubuntu 24.04, Python 3.13.1, Docker 27.3"
+  - type: input
+    id: run
+    attributes:
+      label: Run id (if there is one)

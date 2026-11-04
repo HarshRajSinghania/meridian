@@ -1,80 +1,138 @@
 # Contributing to Meridian
 
-Thanks for taking a look. This is a small project, so the process is short.
+Thanks for taking a look. Meridian is small, the process is short, and first-time contributors are
+very welcome. This page covers, in order: finding something to work on, getting set up, the checks a
+pull request needs, and the handful of rules that are not negotiable.
 
-## Setup
+## Just want to use it?
 
-Requires Python 3.12 or 3.13, Docker, and [uv](https://docs.astral.sh/uv/).
+You do not need a clone to use Meridian:
+
+```bash
+pip install meridian-eval          # or: uv tool install meridian-eval
+meridian setup                     # one-time: builds the model-proxy image (needs Docker)
+meridian --help
+```
+
+The rest of this page is for changing Meridian itself.
+
+## 1. Find something to work on
+
+Every open issue is labelled so you can tell at a glance how big it is and what it touches.
+
+| Label | Meaning |
+|---|---|
+| `good first issue` | Small, well-scoped, with the files to change named in the issue. A good start. |
+| `help wanted` | Larger, but clearly described and nobody is on it. |
+| `size: XS` · `S` · `M` · `L` | Rough effort: an hour, an afternoon, a few days, a week or more. |
+| `area: …` | The part of the code it touches (`proxy`, `grading`, `stats`, `cli`, `importer`, `dashboard`, `ci`, `docs`, `packaging`, `runtime`, `store`, `tests`, `security`). |
+| `needs discussion` | The right answer is not obvious yet. Comment before writing code. |
+| `bug` · `enhancement` · `documentation` · `refactor` · `tests` | What kind of change it is. |
+
+Comment on an issue to say you are taking it, so two people do not do the same work. If you have an idea
+that is not an issue yet, open one first for anything bigger than `size: S`; it is much cheaper to agree
+on an approach before the code exists.
+
+## 2. Set up
+
+Requires Python 3.12 or 3.13, Docker, and [uv](https://docs.astral.sh/uv/). Node 22 only if you work on
+the dashboard.
 
 ```bash
 git clone https://github.com/patsypppe/meridian.git
 cd meridian
-cp .env.example .env
-make sync
-make check
+uv sync               # creates .venv with the dev tools
+make check            # ruff + mypy --strict + unit tests: should pass on a clean checkout
 ```
 
-`make check` runs ruff, `mypy --strict`, and the unit tests. If it does not pass on a clean checkout,
-that is a bug worth an issue on its own.
+If `make check` does not pass on a clean checkout, that is a bug worth an issue on its own.
 
-## Before you open a pull request
+For Docker-backed work, also build the images once: `make images` (and `make db` if you touch `store/`).
+No API key is needed for any test; real-model runs are optional and only used for benchmarks.
 
-```bash
-make fmt          # apply ruff formatting and autofixes
-make check        # lint + typecheck + unit  (must pass)
-make integration  # if you touched runtime/, snapshots/, or store/
-make e2e          # if you touched gate/, manifest/, or the proxy
-```
+## 3. Run the right tests
 
-The pull request also runs the harness against itself via `gate.yml`. A failing gate is not automatically
-a blocker, but it does need an explanation in the PR description.
+Tests come in tiers. Run the cheapest tier that can catch your change, and the others when you touch
+their area. CI runs all of them on every pull request.
 
-## Standards
+| Command | What it runs | When you need it |
+|---|---|---|
+| `make check` | ruff, `mypy --strict`, unit tests (seconds, no Docker) | Always |
+| `make integration` | real containers: isolation, grading sandboxes, the proxy | `runtime/`, `snapshots/`, `store/`, `grading/`, the proxy |
+| `make e2e` | a full run, replay and gate against the fixture agent | `gate/`, `manifest/`, the proxy, the CLI |
+| `cd web && npm ci && npm test && npm run build` | the dashboard's type check, tests and build | `web/` |
 
-- **`mypy --strict` is not negotiable.** No new `# type: ignore` without a comment saying why.
-- **New behavior needs a test at the cheapest tier that can actually catch it.** A pure-logic change
-  belongs in `tests/unit`. Reach for `integration` or `e2e` only when the cheaper tier genuinely cannot
-  observe the behavior, because slow tests get skipped and skipped tests protect nothing.
-- **A check that cannot fail is not a check.** If you add an assertion about isolation, determinism, or
+`make fmt` applies formatting and autofixes.
+
+## 4. Open a pull request
+
+1. Branch from `main`: `git checkout -b fix/short-description`.
+2. Make the change, with a test (see the rules below).
+3. `make check`, plus the tiers for the areas you touched.
+4. Push and open a PR. The template asks what changed and how you checked it; "Closes #123" links the issue.
+5. CI runs lint and types on both Pythons, unit, integration, end-to-end, the dashboard, a packaging check
+   that installs the wheel outside the repository, and Meridian gating itself (`gate.yml`). A failing
+   self-gate is not automatically a blocker, but the PR description should explain it.
+
+Commit messages: present tense, saying what changed, for example
+`gate: block on tolerance and significance together` rather than `update decide.py`.
+
+## 5. The rules
+
+These are what make Meridian's numbers trustworthy. A design that conflicts with one of them loses.
+
+1. **Every trial starts from a clean, isolated environment.** Nothing shared between trials.
+2. **Grade outcomes, not trajectories.** Assertions read the final state of the environment.
+3. **Report pass^k, not a mean.** `pass^k = C(c,k)/C(n,k)`, never `(c/n)**k`.
+4. **Every run is reproducible from its manifest.** Digests, not tags; integers, not floats, in anything hashed.
+
+And the ones that most often catch people out:
+
+- **A provider failure is not an agent failure.** Rate limits and 5xx become `harness_error` with a cause,
+  never a `fail`. Only `harness_error` is retried, and only once.
+- **An assertion that cannot be evaluated is a harness error, never a pass.**
+- **A check that cannot fail is not a check.** If you add an assertion about isolation, determinism or
   reproducibility, add the case that violates it and assert that it is caught. The contamination probe is
   the pattern to follow.
-- **Line length is 100.** Ruff enforces it.
+- **`mypy --strict` is not negotiable.** No new `# type: ignore` without a comment saying why.
+- **Pure logic stays pure.** `stats/`, `gate/decide.py`, `manifest/build.py` and `grading/graders/` have no
+  I/O and no Docker imports, and each function there has both a passing and a failing test.
+- **Isolation lives in one file.** Every container security option is in `src/meridian/runtime/isolation.py`.
+- Line length is 100; ruff enforces it.
 
-## Changing the manifest
+## 6. Area notes
 
-The run manifest is the reproducibility contract. If you change what goes into it or how it is
+**The manifest** is the reproducibility contract. If you change what goes into it or how it is
 canonicalized, update `tests/fixtures/golden-manifest.json` and its hash file in the same commit, and say
 in the PR description why the old manifests are no longer replayable.
 
-## The dashboard (`web/`)
+**The dashboard** (`web/`) re-implements `stats/passk.py` and `stats/intervals.py` in TypeScript. If you
+change either Python module, run `uv run python -m benchmarks.export_web_vectors` and commit the
+regenerated `web/src/__fixtures__/stats-vectors.json`. A Python test fails if it is stale, and the
+TypeScript tests fail if the two implementations disagree.
 
-```bash
-cd web && npm ci
-npm run typecheck && npm test && npm run build
-```
+**The importer** (`importers/harbor.py`) refuses tasks it cannot run faithfully, with a reason. When you
+add support for a Harbor feature, add a test that a task using it converts, and keep a test that an
+unsupported variant is still refused.
 
-Its TypeScript statistics mirror `stats/passk.py` and `stats/intervals.py`. If you change either
-Python module, run `uv run python -m benchmarks.export_web_vectors` and commit the regenerated
-`web/src/__fixtures__/stats-vectors.json`; a Python test fails if it is stale, and the TypeScript
-tests fail if the two implementations disagree.
+**Code from other projects** must keep its license notice: say where it came from and what you changed in
+the file header, and add it to `THIRD_PARTY_NOTICES.md`.
 
-## Adapting other people's code
+## 7. Reporting bugs and security problems
 
-Say where it came from, keep its license notice, list what you changed in the file header, and add it
-to `THIRD_PARTY_NOTICES.md`.
+Use the bug template, and include `meridian version`, how you installed it, and whether the run was in
+`record` or `replay` mode. Say explicitly whether **the harness** errored or **the agent** got a result you
+think is wrong: they are different problems.
 
-## Commit messages
+Security problems go through private reporting, not a public issue; see [SECURITY.md](SECURITY.md).
 
-Present tense, and say what changed rather than which files moved. `gate: block on tolerance and
-significance together` is useful. `update decide.py` is not.
+## 8. Releasing (maintainers)
 
-## Reporting bugs
-
-Please include the `meridian version` output, the run id if there is one, and whether the run was in
-`record` or `replay` mode. If the harness itself errored rather than the agent under test failing, say so
-explicitly: those are different problems and the harness error rate is tracked separately for that
-reason.
+Bump `src/meridian/version.py`, add the section to `CHANGELOG.md`, merge, then run the **release**
+workflow (`workflow_dispatch`, target `pypi`). It builds, checks, publishes to PyPI with trusted
+publishing, and creates the `vX.Y.Z` tag and GitHub release with the same files.
 
 ## License
 
-By contributing you agree that your contributions are licensed under the MIT License.
+By contributing you agree that your contributions are licensed under the [MIT License](LICENSE), and you
+agree to follow the [code of conduct](CODE_OF_CONDUCT.md).

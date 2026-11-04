@@ -32,6 +32,12 @@ First release on PyPI, as `meridian-eval` (the command and import are still `mer
 ### Packaging
 - `pip install meridian-eval` ships the proxy Dockerfile and the terminal agent inside the wheel;
   `meridian setup` builds the proxy image from the installed package.
+- Dropped three dependencies nothing imported (`structlog`, `opentelemetry-sdk`, `python-dotenv`), so
+  the install is smaller.
+
+### Contributing
+- A rewritten `CONTRIBUTING.md`, issue and pull-request templates, `SECURITY.md`, a code of conduct,
+  Dependabot for Actions, Python and npm, and unit tests on both supported Pythons in CI.
 
 ## 0.1.0
 

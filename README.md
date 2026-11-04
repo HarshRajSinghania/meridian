@@ -1,5 +1,22 @@
 # Meridian
 
+[![PyPI](https://img.shields.io/pypi/v/meridian-eval)](https://pypi.org/project/meridian-eval/)
+[![Python](https://img.shields.io/pypi/pyversions/meridian-eval)](https://pypi.org/project/meridian-eval/)
+[![CI](https://github.com/patsypppe/meridian/actions/workflows/ci.yml/badge.svg)](https://github.com/patsypppe/meridian/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![good first issues](https://img.shields.io/github/issues/patsypppe/meridian/good%20first%20issue)](https://github.com/patsypppe/meridian/labels/good%20first%20issue)
+
+**A CI gate for AI agents: did this change make my agent better or worse, and can I reproduce that answer tomorrow?**
+
+```bash
+pip install meridian-eval     # or: uv tool install meridian-eval
+meridian setup                # one-time: builds the model-proxy image (needs Docker)
+meridian --help
+```
+
+Want to help? Start with a [`good first issue`](https://github.com/patsypppe/meridian/labels/good%20first%20issue)
+and read [CONTRIBUTING.md](CONTRIBUTING.md).
+
 **A harness that cannot measure itself has no standing to measure anything else.**
 
 **[See it on one page → patsypppe.github.io/meridian](https://patsypppe.github.io/meridian/)**: three real gate verdicts, the sensitivity explorer, the isolation model and the contamination probe, all drawn from real runs ([`site/data/`](site/data/)).
@@ -189,7 +206,7 @@ meridian setup                     # one-time: builds the model-proxy image
 ```
 
 The PyPI name is `meridian-eval` (plain `meridian` is taken); the command and the import are both
-`meridian`. Until the first PyPI release is out, install straight from GitHub:
+`meridian`. To install the latest unreleased `main` instead:
 `pip install "git+https://github.com/patsypppe/meridian"`.
 
 An installed `meridian` can import benchmarks, build their images and run them with the bundled
@@ -391,6 +408,9 @@ has both a passing case and a failing case.**
 
 | | |
 |---|---|
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to set up, find an issue, run the right tests, and open a pull request |
+| [`CHANGELOG.md`](CHANGELOG.md) | What changed in each release |
+| [`SECURITY.md`](SECURITY.md) | How to report a vulnerability privately |
 | [`docs/runbook.md`](docs/runbook.md) | One entry per failure mode: what you see, what it means, what to do |
 | [`docs/demo/`](docs/demo/) | Captured output from a real gated PR, and how to regenerate it |
 | [`docs/HANDOFF.md`](docs/HANDOFF.md) | The engineering contract this was built against |

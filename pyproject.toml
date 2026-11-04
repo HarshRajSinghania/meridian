@@ -33,10 +33,7 @@ dependencies = [
     "httpx>=0.28",
     "starlette>=0.45",
     "uvicorn>=0.34",
-    "structlog>=25.1",
     "jsonpath-ng>=1.7",
-    "opentelemetry-sdk>=1.29",
-    "python-dotenv>=1.0",
     "sqlalchemy>=2.0.52",
 ]
 

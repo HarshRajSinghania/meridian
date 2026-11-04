@@ -11,14 +11,19 @@ concurrency:
 
 jobs:
   static:
-    name: lint + types + unit
+    name: lint + types + unit (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every Python the package claims to support (requires-python in pyproject.toml).
+        python: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - run: uv sync --frozen
+      - run: uv sync --frozen --python ${{ matrix.python }}
       - name: ruff lint
         run: uv run ruff check src tests benchmarks
       - name: ruff format check

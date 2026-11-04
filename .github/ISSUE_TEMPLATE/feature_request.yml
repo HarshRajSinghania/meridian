@@ -1,0 +1,21 @@
+name: Feature or improvement
+description: Something Meridian could do, or do better.
+labels: ["enhancement", "needs triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and where does Meridian get in the way? Start from the problem, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+      description: The change you have in mind, and how you would know it works.
+  - type: textarea
+    id: rules
+    attributes:
+      label: Does it touch the four rules?
+      description: Isolation, outcome grading, pass^k, reproducibility from the manifest (see README). If a design conflicts with one of them, the design loses, so say how yours keeps them.
