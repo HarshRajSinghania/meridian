@@ -65,3 +65,36 @@ jobs:
       - name: Publish to PyPI
         if: github.event_name != 'workflow_dispatch' || inputs.target == 'pypi'
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  # After PyPI has the files, record the release on GitHub too, with the same
+  # artifacts and the matching CHANGELOG section as its notes.
+  github-release:
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          {
+            echo "Install from PyPI: \`pip install meridian-eval==${version}\` (or \`uv tool install meridian-eval\`), then \`meridian setup\`."
+            echo
+            awk -v v="## ${version}" '$0==v{f=1;next} /^## /{if(f)exit} f' CHANGELOG.md
+          } > notes.md
+          cat notes.md
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --title "Meridian ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
+          fi
