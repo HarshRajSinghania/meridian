@@ -25,6 +25,7 @@ Pure parsing and planning: no Docker, no network.
 
 from __future__ import annotations
 
+import json
 import re
 import shlex
 import tomllib
@@ -74,6 +75,9 @@ class HarborTask:
     docker_image: str | None
     environment_dir: Path | None
     test_files: dict[str, bytes]
+    environment_env: dict[str, str] = field(default_factory=dict)
+    verifier_env: dict[str, str] = field(default_factory=dict)
+    verifier_timeout_seconds: int = 120
     metadata: dict[str, Any] = field(default_factory=dict)
     issues: list[Issue] = field(default_factory=list)
 
@@ -184,6 +188,13 @@ def rewrite_uv_boilerplate(script: str) -> str | None:
     return result if result != script else None
 
 
+def _string_table(value: Any) -> dict[str, str]:
+    """A TOML table of environment variables as strings (values are stringified)."""
+    if not isinstance(value, dict):
+        return {}
+    return {str(k): str(v) for k, v in value.items()}
+
+
 def _last_workdir(dockerfile: str) -> str | None:
     matches = re.findall(r"^\s*WORKDIR\s+(\S+)", dockerfile, re.MULTILINE | re.IGNORECASE)
     return matches[-1] if matches else None
@@ -291,6 +302,32 @@ def load_harbor_task(
             )
         )
 
+    # -- environment variables ----------------------------------------------------------
+    # Applied, not dropped: a task that depends on them would otherwise convert cleanly
+    # and then behave differently from its benchmark. A value that templates from the
+    # host (`${VAR}`) is refused: resolving it would inject the evaluating machine's
+    # environment, which is exactly what must never reach a trial or a grader.
+    environment_env = _string_table(environment.get("env"))
+    verifier_env = _string_table(verifier.get("env"))
+    templated = sorted(
+        name
+        for name, value in {**environment_env, **verifier_env}.items()
+        if "${" in value or "$(" in value
+    )
+    if templated:
+        issues.append(
+            Issue(
+                "env_from_host",
+                "environment values reference the host environment ("
+                + ", ".join(templated)
+                + "); Meridian does not pass host variables into trials or graders",
+            )
+        )
+    if (config.get("solution") or {}).get("env"):
+        issues.append(
+            Issue("solution_env", "solution.env is ignored (solutions are not run)", WARNING)
+        )
+
     # -- verifier --------------------------------------------------------------------
     tests_dir = root / "tests"
     test_files: dict[str, bytes] = {}
@@ -352,6 +389,11 @@ def load_harbor_task(
         docker_image=docker_image,
         environment_dir=environment_dir if environment_dir.is_dir() else None,
         test_files=test_files,
+        environment_env=environment_env,
+        verifier_env=verifier_env,
+        verifier_timeout_seconds=_clamp_timeout(verifier.get("timeout_sec"), None)
+        if verifier.get("timeout_sec") is not None
+        else 120,
         metadata=dict(config.get("metadata") or {}),
         issues=issues,
     )
@@ -450,7 +492,10 @@ def overlay_dockerfile(task: HarborTask) -> str:
     base = task.dockerfile if task.dockerfile is not None else f"FROM {task.docker_image}\n"
     if not base.endswith("\n"):
         base += "\n"
-    return base + OVERLAY_TEMPLATE.format(uid=TRIAL_UID, workdir=task.workdir)
+    env_lines = "".join(
+        f"ENV {name}={json.dumps(value)}\n" for name, value in sorted(task.environment_env.items())
+    )
+    return base + OVERLAY_TEMPLATE.format(uid=TRIAL_UID, workdir=task.workdir) + env_lines
 
 
 # -- writing a Meridian suite --------------------------------------------------------
@@ -515,7 +560,14 @@ def write_task(task: HarborTask, suite_dir: Path, slug: str) -> None:
             "max_tokens": 200_000,
             "budget_cents": 50,
         },
-        "outcome_assertions": [{"kind": "verifier_script", "path": "/tests/test.sh"}],
+        "outcome_assertions": [
+            {
+                "kind": "verifier_script",
+                "path": "/tests/test.sh",
+                "timeout_seconds": task.verifier_timeout_seconds,
+                **({"env": dict(sorted(task.verifier_env.items()))} if task.verifier_env else {}),
+            }
+        ],
         "tags": ["harbor", *task.tags],
     }
     _write(

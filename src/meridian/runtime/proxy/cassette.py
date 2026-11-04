@@ -29,6 +29,7 @@ from typing import Any
 
 from meridian.hashing import content_hash
 from meridian.models.task import SLUG_PATTERN
+from meridian.runtime.secrets import write_redacted
 
 # The task schema's own slug rule, restated where a slug becomes a file path.
 _SAFE_SLUG = re.compile(SLUG_PATTERN)
@@ -226,10 +227,10 @@ class CassetteStore:
     def save(self, cassette: Cassette) -> Path:
         self.root.mkdir(parents=True, exist_ok=True)
         path = self.path_for(cassette.task_slug)
-        path.write_text(
-            json.dumps(cassette.to_dict(), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        # Written inside the proxy, the one container that holds the credential, and
+        # usually committed to the repository: a provider that echoes the key in a
+        # response must not put it into git.
+        write_redacted(path, json.dumps(cassette.to_dict(), indent=2, sort_keys=True) + "\n")
         return path
 
     def save_all(self) -> list[Path]:

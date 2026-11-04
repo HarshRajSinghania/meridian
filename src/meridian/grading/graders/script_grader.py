@@ -17,6 +17,7 @@ The decision is deliberately strict:
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -41,7 +42,15 @@ class ScriptOutcome:
 class ScriptRunner(Protocol):
     """Runs a verifier script against extracted state, in isolation from the host."""
 
-    def __call__(self, state_dir: Path, script_path: str, reward_path: str) -> ScriptOutcome: ...
+    def __call__(
+        self,
+        state_dir: Path,
+        script_path: str,
+        reward_path: str,
+        *,
+        env: Mapping[str, str] | None = None,
+        timeout_seconds: int = 120,
+    ) -> ScriptOutcome: ...
 
 
 def parse_reward(text: str | None, reward_path: str) -> float:
@@ -69,7 +78,13 @@ def grade_verifier_script(
             "Running a verifier on the host would give an evaluated agent code execution "
             "on the evaluating machine, so the assertion errors instead."
         )
-    outcome = runner(state_dir, assertion.path, assertion.reward_path)
+    outcome = runner(
+        state_dir,
+        assertion.path,
+        assertion.reward_path,
+        env=assertion.env,
+        timeout_seconds=assertion.timeout_seconds,
+    )
     if outcome.infra_error is not None:
         raise GraderError(f"the grading container failed: {outcome.infra_error}")
 

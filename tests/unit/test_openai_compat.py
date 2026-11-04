@@ -289,3 +289,25 @@ async def test_transient_provider_errors_are_retried_not_scored(
         )
     assert response.status_code == 200
     assert calls["n"] == 3
+
+
+async def test_streaming_requests_are_refused_clearly_and_never_forwarded(
+    tmp_path: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def must_not_be_called(*_: object, **__: object) -> dict[str, object]:
+        raise AssertionError("a streaming request must not reach the provider")
+
+    monkeypatch.setattr(server_module, "_call_upstream", must_not_be_called)
+    app = create_app(ProxyConfig(mode=ProxyMode.RECORD, cassette_dir=tmp_path, limits={}))  # type: ignore[arg-type]
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://proxy"
+    ) as client:
+        response = await client.post(
+            "/v1/messages",
+            json={"model": "m", "max_tokens": 8, "stream": True, "messages": []},
+            headers={"x-meridian-task": "happy-path", "x-meridian-trial": "0"},
+        )
+        usage = (await client.get("/v1/usage")).json()
+    assert response.status_code == 400
+    assert "does not support streaming" in response.json()["error"]["message"]
+    assert usage["run_cents"] == 0

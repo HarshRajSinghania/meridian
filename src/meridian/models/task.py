@@ -211,6 +211,9 @@ class VerifierScript(_Assertion):
     kind: Literal["verifier_script"]
     path: str
     reward_path: str = "/logs/verifier/reward.txt"
+    # The benchmark's own verifier settings, carried over by importers.
+    env: dict[str, str] = Field(default_factory=dict)
+    timeout_seconds: int = Field(default=120, ge=MIN_TIMEOUT_SECONDS, le=MAX_TIMEOUT_SECONDS)
 
 
 OutcomeAssertion = Annotated[

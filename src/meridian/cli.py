@@ -14,6 +14,7 @@ import typer
 from meridian import exit_codes
 from meridian.assets import MissingAssetError, resolve_sut, write_proxy_build_context
 from meridian.docker_client import DockerUnavailableError, get_client
+from meridian.runtime.secrets import write_redacted
 from meridian.snapshots.build import (
     SnapshotBuildError,
     build_snapshot,
@@ -234,6 +235,37 @@ def import_harbor(
 
 
 @app.command()
+def doctor(
+    check_upstream: bool = typer.Option(
+        False,
+        "--check-upstream",
+        help="Also send one tiny request to the configured model provider (costs a few tokens).",
+    ),
+) -> None:
+    """Check that this machine can run Meridian, and say how to fix what is not."""
+    import httpx
+
+    from meridian import doctor as doctor_module
+    from meridian.runtime.proxy.session import PROXY_IMAGE_TAG
+
+    def connect(url: str) -> None:
+        import psycopg
+
+        psycopg.connect(url, connect_timeout=3).close()
+
+    checks = doctor_module.run(
+        get_client=get_client,
+        proxy_tag=PROXY_IMAGE_TAG,
+        connect=connect,
+        post=httpx.post if check_upstream else None,
+    )
+    out(doctor_module.render(checks))
+    code = doctor_module.exit_code(checks)
+    if code:
+        raise typer.Exit(code)
+
+
+@app.command()
 def setup() -> None:
     """Build the model-proxy image from the installed package.
 
@@ -328,13 +360,13 @@ def suite_audit(
     returning FAIL (`HANDOFF §8.4`) — CI must never have to guess which of the two
     it is looking at. Gate on the JSON from `--out` instead.
     """
-    import asyncio
     import json as json_module
 
     from meridian.config import RunMode, load_config
     from meridian.models.run import Outcome
     from meridian.models.suite import Suite
-    from meridian.runtime.orchestrator import RunRequest, default_cassette_dir, execute
+    from meridian.runtime.orchestrator import RunRequest, default_cassette_dir
+    from meridian.runtime.shutdown import execute_cleanly
     from meridian.suites.audit import ADVERSARIES, audit_report, findings
 
     try:
@@ -385,7 +417,7 @@ def suite_audit(
             progress=None,
         )
         try:
-            outcome = asyncio.run(execute(client, request))
+            outcome = execute_cleanly(client, request)
         except Exception as exc:
             err(f"the {adversary.name} adversary could not be run: {type(exc).__name__}: {exc}")
             raise typer.Exit(exit_codes.HARNESS_ERROR) from exc
@@ -484,11 +516,11 @@ def run(
     Exits non-zero only if the harness itself failed. An agent that performed
     badly is a result, not an error — see the exit-code contract in HANDOFF §8.4.
     """
-    import asyncio
 
     from meridian.config import RunMode, load_config
     from meridian.report import table
-    from meridian.runtime.orchestrator import RunRequest, default_cassette_dir, execute
+    from meridian.runtime.orchestrator import RunRequest, default_cassette_dir
+    from meridian.runtime.shutdown import execute_cleanly
 
     try:
         loaded = load_suite(suite)
@@ -539,7 +571,7 @@ def run(
     )
 
     try:
-        outcome = asyncio.run(execute(client, request))
+        outcome = execute_cleanly(client, request)
     except Exception as exc:
         err(f"run failed: {type(exc).__name__}: {exc}")
         raise typer.Exit(exit_codes.HARNESS_ERROR) from exc
@@ -561,16 +593,16 @@ def run(
 
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(outcome.result.model_dump_json(indent=2), encoding="utf-8")
+        write_redacted(out, outcome.result.model_dump_json(indent=2))
         err(f"wrote {out}")
 
     if html_out is not None:
         from meridian.report import html as html_report
 
         html_out.parent.mkdir(parents=True, exist_ok=True)
-        html_out.write_text(
+        write_redacted(
+            html_out,
             html_report.render(outcome.result, manifest_hash=outcome.manifest.manifest_hash()),
-            encoding="utf-8",
         )
         err(f"wrote {html_out}")
 
@@ -672,14 +704,14 @@ def gate(
     1 for FAIL, 0 for everything else. CI must never confuse "the agent got
     worse" with "the tool crashed".
     """
-    import asyncio
 
     from meridian.config import RunMode, load_config
     from meridian.gate import comment as comment_module
     from meridian.gate.baseline import Baseline, BaselineError, merge_base, worktree_at
     from meridian.gate.decide import GateInput, decide, flipped_tasks
     from meridian.manifest import store as run_store
-    from meridian.runtime.orchestrator import RunRequest, default_cassette_dir, execute
+    from meridian.runtime.orchestrator import RunRequest, default_cassette_dir
+    from meridian.runtime.shutdown import execute_cleanly
     from meridian.stats.significance import paired_regression_p_value
 
     repo_root = Path.cwd()
@@ -763,7 +795,7 @@ def gate(
                         if not base_sut.is_dir():
                             err(f"{sut} does not exist at {sha[:12]}; treating as no baseline")
                         else:
-                            outcome = asyncio.run(execute(client, request(base_sut, "baseline")))
+                            outcome = execute_cleanly(client, request(base_sut, "baseline"))
                             run_store.save(outcome.manifest, outcome.result)
                             baseline_scores = comment_module.per_task_scores(outcome.result)
                             baseline_suite = comment_module.suite_score(outcome.result)
@@ -779,7 +811,7 @@ def gate(
 
     # --- head -----------------------------------------------------------
     try:
-        head = asyncio.run(execute(client, request(sut, "head")))
+        head = execute_cleanly(client, request(sut, "head"))
     except Exception as exc:
         err(f"head run failed: {type(exc).__name__}: {exc}")
         raise typer.Exit(exit_codes.HARNESS_ERROR) from exc
@@ -833,7 +865,7 @@ def gate(
 
     if comment_file is not None:
         comment_file.parent.mkdir(parents=True, exist_ok=True)
-        comment_file.write_text(body + "\n", encoding="utf-8")
+        write_redacted(comment_file, body + "\n")
         err(f"wrote {comment_file}")
 
     print(body)
@@ -857,12 +889,12 @@ def replay(
     Replay is a correctness check on the harness, not a convenience. Drift means
     something outside the manifest is influencing results.
     """
-    import asyncio
 
     from meridian.config import load_config
     from meridian.manifest import store as run_store
     from meridian.manifest.replay import ReplayError, compare, verify_images_available
-    from meridian.runtime.orchestrator import RunRequest, default_cassette_dir, execute
+    from meridian.runtime.orchestrator import RunRequest, default_cassette_dir
+    from meridian.runtime.shutdown import execute_cleanly
 
     try:
         manifest = run_store.load_manifest(run_id)
@@ -917,7 +949,7 @@ def replay(
     )
 
     try:
-        outcome = asyncio.run(execute(client, request))
+        outcome = execute_cleanly(client, request)
     except Exception as exc:
         err(f"replay failed: {type(exc).__name__}: {exc}")
         raise typer.Exit(exit_codes.HARNESS_ERROR) from exc

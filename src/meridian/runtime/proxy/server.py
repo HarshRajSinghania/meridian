@@ -187,6 +187,23 @@ async def messages(request: Request) -> Response:
         # budget. It is emphatically not a harness error.
         return JSONResponse(exc.as_payload(), status_code=429)
 
+    if body.get("stream") is True:
+        # Streaming is not supported yet. Saying so plainly beats forwarding the
+        # request and failing to parse the event stream as a misleading 502.
+        return JSONResponse(
+            {
+                "type": "error",
+                "error": {
+                    "type": "invalid_request_error",
+                    "message": (
+                        "Meridian's proxy does not support streaming responses yet "
+                        '("stream": true). Send non-streaming requests.'
+                    ),
+                },
+            },
+            status_code=400,
+        )
+
     key = request_key(body)
     cassette = state.cassettes.get(task_slug)
     # Priced as the model that actually runs, not the name the agent asked for.

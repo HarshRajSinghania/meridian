@@ -12,7 +12,9 @@ there is no code path that could put a key there by accident.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 PROVIDER_ENV_VARS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY")
 
@@ -69,16 +71,44 @@ def has_credential(env: dict[str, str] | None = None) -> bool:
     return any(environment.get(name, "").strip() for name in PROVIDER_ENV_VARS)
 
 
-def redact(text: str) -> str:
-    """Replace anything that looks like a credential.
+# A credential shorter than this is not scrubbed by value: replacing every
+# occurrence of a short string would mangle ordinary text.
+MIN_SCRUBBED_VALUE_LENGTH = 8
 
-    Applied to everything that leaves the harness as text — log lines, PR
-    comments, failure details. A secret is only secret until it is printed once.
+
+def _known_secret_values(env: Mapping[str, str] | None = None) -> list[str]:
+    """The actual credential values present in this process, longest first.
+
+    Prefix matching only catches key formats it knows about. Scrubbing the values
+    themselves also catches a provider whose keys look like nothing in particular.
+    """
+    environment = os.environ if env is None else env
+    values = {
+        environment[name].strip()
+        for name in PROVIDER_ENV_VARS
+        if len(environment.get(name, "").strip()) >= MIN_SCRUBBED_VALUE_LENGTH
+    }
+    return sorted(values, key=len, reverse=True)
+
+
+def redact(text: str, *, env: Mapping[str, str] | None = None) -> str:
+    """Replace anything that looks like, or is, a credential.
+
+    Applied to everything that leaves the harness as text: log lines, PR comments,
+    failure details, and every file a run writes. A secret is only secret until it
+    is printed once.
     """
     redacted = text
-    for token in _secret_tokens(text):
+    for value in _known_secret_values(env):
+        redacted = redacted.replace(value, REDACTION)
+    for token in _secret_tokens(redacted):
         redacted = redacted.replace(token, REDACTION)
     return redacted
+
+
+def write_redacted(path: Path, text: str) -> None:
+    """Write `text` to `path` with credentials scrubbed. Use for every file a run writes."""
+    path.write_text(redact(text), encoding="utf-8")
 
 
 def _secret_tokens(text: str) -> list[str]:

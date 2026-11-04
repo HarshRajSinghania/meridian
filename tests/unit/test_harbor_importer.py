@@ -484,3 +484,49 @@ def test_the_cli_applies_the_timeout_cap(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
     assert load_suite(out_dir).task("word-count").limits.timeout_seconds == 60
+
+
+# -- environment variables and verifier timeout -------------------------------------
+
+
+def test_environment_and_verifier_env_are_applied(tmp_path: Path) -> None:
+    toml = (
+        TASK_TOML.replace(
+            "[verifier]\ntimeout_sec = 60.0",
+            '[verifier]\ntimeout_sec = 300.0\n[verifier.env]\nMODE = "strict"',
+        )
+        + '\n[environment.env]\nAPP_HOME = "/app"\nGREETING = "hello world"\n'
+    )
+    task = harbor.load_harbor_task(make_task(tmp_path, toml=toml))
+    assert task.supported, task.issues
+    assert task.environment_env == {"APP_HOME": "/app", "GREETING": "hello world"}
+    assert task.verifier_env == {"MODE": "strict"}
+    assert task.verifier_timeout_seconds == 300
+    dockerfile = harbor.overlay_dockerfile(task)
+    assert 'ENV APP_HOME="/app"' in dockerfile and 'ENV GREETING="hello world"' in dockerfile
+
+    suite_dir = tmp_path / "suite"
+    harbor.write_suite([task], suite_dir, suite_slug="demo")
+    assertion = load_suite(suite_dir).task("word-count").outcome_assertions[0]
+    assert assertion.env == {"MODE": "strict"}  # type: ignore[union-attr]
+    assert assertion.timeout_seconds == 300  # type: ignore[union-attr]
+
+
+def test_env_that_templates_from_the_host_is_refused(tmp_path: Path) -> None:
+    """Resolving ${VAR} would inject the evaluating machine's environment."""
+    toml = TASK_TOML + '\n[verifier.env]\nTOKEN = "${GITHUB_TOKEN}"\n'
+    task = harbor.load_harbor_task(make_task(tmp_path, toml=toml))
+    assert "env_from_host" in codes(task)
+
+
+def test_tasks_without_env_or_timeout_keep_the_defaults(tmp_path: Path) -> None:
+    toml = TASK_TOML.replace("[verifier]\ntimeout_sec = 60.0\n", "")
+    task = harbor.load_harbor_task(make_task(tmp_path, toml=toml))
+    assert task.environment_env == {} and task.verifier_env == {}
+    assert task.verifier_timeout_seconds == 120
+    # nothing appended after the overlay's own last line
+    assert (
+        harbor.overlay_dockerfile(task)
+        .rstrip()
+        .endswith('ENTRYPOINT ["/opt/meridian/bootstrap.sh"]')
+    )

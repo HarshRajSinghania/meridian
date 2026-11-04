@@ -74,6 +74,8 @@ jobs:
           venv/bin/meridian version
       - name: meridian setup builds the proxy image from the installed package
         run: cd "$RUNNER_TEMP" && venv/bin/meridian setup
+      - name: meridian doctor passes on a set-up machine
+        run: cd "$RUNNER_TEMP" && venv/bin/meridian doctor
       - name: Import and build a benchmark task from the installed CLI
         run: |
           cd "$RUNNER_TEMP"

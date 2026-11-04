@@ -97,7 +97,15 @@ class _GradingSandbox:
         self._workdir = workdir
         self._grader_files = dict(grader_files or {})
 
-    def run(self, state_dir: Path, command: str, tag: str) -> tuple[int, str]:
+    def run(
+        self,
+        state_dir: Path,
+        command: str,
+        tag: str,
+        *,
+        environment: Mapping[str, str] | None = None,
+        timeout_seconds: int = GRADING_TIMEOUT_SECONDS,
+    ) -> tuple[int, str]:
         volume = self._client.volumes.create(
             name=f"meridian-grade-{self._run_id}-{abs(hash(tag)) % 10**8}",
             labels={RUN_LABEL: self._run_id},
@@ -120,7 +128,8 @@ class _GradingSandbox:
                 tmpfs=GRADING_TMPFS,
                 volumes={volume.name: {"bind": self._workdir, "mode": "rw"}},
                 working_dir=self._workdir,
-                environment={},
+                # Only what the task's verifier declares; never the harness's environment.
+                environment=dict(environment or {}),
                 labels={RUN_LABEL: self._run_id, TRIAL_LABEL: "grading"},
                 stdin_open=True,
                 detach=True,
@@ -128,7 +137,7 @@ class _GradingSandbox:
             )
             container.start()
             self._send(container, _archive(state_dir, self._grader_files, workdir=self._workdir))
-            status = container.wait(timeout=GRADING_TIMEOUT_SECONDS)
+            status = container.wait(timeout=timeout_seconds)
             output = container.logs().decode("utf-8", errors="replace")
             return int(status.get("StatusCode", 1)), output
         except Exception as exc:
@@ -208,7 +217,15 @@ class ContainerScriptRunner:
             client, image=image, run_id=run_id, workdir=workdir, grader_files=grader_files
         )
 
-    def __call__(self, state_dir: Path, script_path: str, reward_path: str) -> ScriptOutcome:
+    def __call__(
+        self,
+        state_dir: Path,
+        script_path: str,
+        reward_path: str,
+        *,
+        env: Mapping[str, str] | None = None,
+        timeout_seconds: int = GRADING_TIMEOUT_SECONDS,
+    ) -> ScriptOutcome:
         marker = secrets.token_hex(16)
         # Harbor guarantees the reward directory exists; verifiers write to it
         # without creating it, so the sandbox must.
@@ -219,7 +236,9 @@ class ContainerScriptRunner:
             f'printf "\\n{marker}:%s:{marker}\\n" "$(cat "{reward_path}" 2>/dev/null)"; exit $code'
         )
         try:
-            exit_code, output = self._sandbox.run(state_dir, command, script_path)
+            exit_code, output = self._sandbox.run(
+                state_dir, command, script_path, environment=env, timeout_seconds=timeout_seconds
+            )
         except GradingContainerError as exc:
             return ScriptOutcome(exit_code=1, output="", reward_text=None, infra_error=str(exc))
         return ScriptOutcome(

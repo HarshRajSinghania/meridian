@@ -134,3 +134,22 @@ def test_a_verifier_that_does_not_create_the_reward_directory_still_works(
         state(tmp_path), "/tests/test.sh", "/logs/verifier/reward.txt"
     )
     assert (out.reward_text or "").strip() == "1"
+
+
+def test_the_verifier_sees_its_declared_env_and_nothing_else(
+    docker_client: Any, image: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_must_not_reach_the_grader_123456")
+    verifier = (
+        b"#!/bin/bash\nmkdir -p /logs/verifier\n"
+        b'if [ "$MODE" = "strict" ] && [ -z "$GROQ_API_KEY" ]; then echo 1; else echo 0; fi'
+        b" > /logs/verifier/reward.txt\n"
+    )
+    out = runner(docker_client, image, {"/tests/test.sh": verifier})(
+        state(tmp_path),
+        "/tests/test.sh",
+        "/logs/verifier/reward.txt",
+        env={"MODE": "strict"},
+        timeout_seconds=60,
+    )
+    assert (out.reward_text or "").strip() == "1"

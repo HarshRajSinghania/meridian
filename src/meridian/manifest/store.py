@@ -13,6 +13,7 @@ from pathlib import Path
 
 from meridian.models.manifest import Manifest
 from meridian.models.run import RunResult
+from meridian.runtime.secrets import write_redacted
 
 RUNS_DIR = Path("runs")
 MANIFEST_FILE = "manifest.json"
@@ -30,8 +31,9 @@ def run_dir(run_id: str, root: Path | None = None) -> Path:
 def save(manifest: Manifest, result: RunResult, *, root: Path | None = None) -> Path:
     directory = run_dir(result.run_id, root)
     directory.mkdir(parents=True, exist_ok=True)
-    (directory / MANIFEST_FILE).write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
-    (directory / RESULT_FILE).write_text(result.model_dump_json(indent=2), encoding="utf-8")
+    # Archives end up in CI artifacts; nothing credential-shaped may reach them.
+    write_redacted(directory / MANIFEST_FILE, manifest.model_dump_json(indent=2))
+    write_redacted(directory / RESULT_FILE, result.model_dump_json(indent=2))
     return directory
 
 

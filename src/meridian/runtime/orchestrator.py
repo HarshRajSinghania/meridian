@@ -36,6 +36,7 @@ from meridian.runtime.proxy.cassette import CassetteStore
 from meridian.runtime.proxy.session import ProxyHandle, start_proxy, stop_proxy
 from meridian.runtime.pytest_runner import ContainerPytestRunner, ContainerScriptRunner
 from meridian.runtime.scheduler import run_tasks
+from meridian.runtime.secrets import redact
 from meridian.runtime.trial_runner import TrialRunner, UpstreamState, sweep_orphans
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -92,7 +93,8 @@ def summarize_throttling(usage: dict[str, Any]) -> str:
     reasons = [
         str(t.get("last_retry_reason", "")) for t in trials.values() if t.get("last_retry_reason")
     ]
-    reason = f"; provider said: {reasons[-1]}" if reasons else ""
+    # The provider's own words can echo a credential back; never print one.
+    reason = f"; provider said: {redact(reasons[-1])}" if reasons else ""
     return (
         f"provider throttling: {retries} retries across {throttled} of {len(trials)} trial(s), "
         f"{waited_s:.0f}s spent backing off{reason}"

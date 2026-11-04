@@ -11,7 +11,7 @@
 ```bash
 pip install meridian-eval     # or: uv tool install meridian-eval
 meridian setup                # one-time: builds the model-proxy image (needs Docker)
-meridian --help
+meridian doctor               # checks Docker, the image, your provider key, and says how to fix problems
 ```
 
 ## What it does
@@ -27,6 +27,9 @@ meridian --help
   format, such as Terminal-Bench 2.0.
 - **Never blames the agent for the infrastructure**: a provider rate limit or a broken grader is reported
   as a harness error with its cause, not as the agent failing.
+- **Behaves like production software**: a run stopped by Ctrl-C or SIGTERM (a cancelled CI job,
+  `docker stop`) removes every container it created, and nothing that looks like a key is ever written
+  to a run archive, cassette or report.
 
 [Showcase page](https://patsypppe.github.io/meridian/) · [Results dashboard](https://patsypppe.github.io/meridian/dashboard/) ·
 [PyPI](https://pypi.org/project/meridian-eval/) · [Changelog](CHANGELOG.md)
@@ -305,6 +308,9 @@ export MERIDIAN_UPSTREAM_MODEL=openai/gpt-oss-120b   # chosen by the operator, n
 uv run meridian run --suite ./suites/checkout-agent --n 5 --k 3 --proxy-mode record --live-provider
 ```
 
+**Streaming is not supported yet.** A request with `"stream": true` gets a clear 400 saying so;
+agents need to make ordinary requests through the proxy.
+
 **A provider failure is not an agent failure.** The proxy retries rate limits and 5xx errors with
 jittered, bounded backoff (honouring `Retry-After`) and records how long it waited. A trial that
 still ends in a provider error is a `harness_error` with a cause (`sandbox`, `adapter_config`,
@@ -330,6 +336,10 @@ random per-run markers, so nothing the agent prints can forge a pass. A task Mer
 is **skipped with the reason**, not converted into something that runs under different rules:
 multi-step tasks, GPUs, MCP servers, compose sidecars, Windows, non-apt bases, and verifiers that
 install packages at test time.
+
+A benchmark task's own settings are honoured: its environment variables are applied in the image and
+in the grading container, and its verifier gets the time limit the benchmark gives it. A value that
+would pull from the host's environment (`${VAR}`) is refused rather than resolved.
 
 What was actually checked: on Terminal-Bench 2.0, **66 of 89 tasks convert** (23 are refused because
 their verifier needs the network); on Harbor's own 32 example tasks, 13 convert. A converted task

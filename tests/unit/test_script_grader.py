@@ -22,7 +22,7 @@ ASSERTION = VerifierScript(kind="verifier_script", path="/tests/test.sh")
 
 
 def runner_returning(outcome: ScriptOutcome):  # type: ignore[no-untyped-def]
-    return lambda *_: outcome
+    return lambda *_, **__: outcome
 
 
 def test_reward_of_one_passes(tmp_path: Path) -> None:
@@ -87,3 +87,17 @@ def test_agent_printed_text_cannot_forge_a_reward() -> None:
 
 def test_missing_markers_mean_no_reward() -> None:
     assert _extract_reward("script crashed before printing", "M123") is None
+
+
+def test_the_verifier_gets_its_declared_env_and_timeout(tmp_path: Path) -> None:
+    seen: dict[str, object] = {}
+
+    def runner(state_dir: Path, script: str, reward: str, **kwargs: object) -> ScriptOutcome:
+        seen.update(kwargs)
+        return ScriptOutcome(exit_code=0, output="", reward_text="1")
+
+    assertion = VerifierScript(
+        kind="verifier_script", path="/tests/test.sh", env={"MODE": "strict"}, timeout_seconds=300
+    )
+    grade_verifier_script(assertion, tmp_path, runner)
+    assert seen == {"env": {"MODE": "strict"}, "timeout_seconds": 300}

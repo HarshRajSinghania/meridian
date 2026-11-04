@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.3.0
+
+Production hardening: a run that is stopped cleans up after itself, nothing that looks like a key is
+written to disk, failures say what went wrong, and imported benchmarks run under their own settings.
+
+### Reliability
+- A run stopped with SIGTERM or SIGHUP (a cancelled CI job, `docker stop`, Kubernetes) now cleans up
+  like Ctrl-C does, instead of exiting on the spot and leaking trial containers. After the event loop
+  has stopped, every container and volume labelled with the run's id is swept once more, and further
+  signals are ignored while that happens. The run exits with code 2 and says what it removed.
+
+### Security
+- Every file a run writes (the run archive, cassettes, the HTML report, `--out`, the gate comment) is
+  scrubbed of credentials, and so is the provider's own error text when a run prints it.
+- Redaction now also matches the actual values of the provider keys in the environment, so a key in
+  a format with no known prefix is caught too.
+
+### Clearer failures
+- `meridian doctor` checks that a machine can run Meridian (Docker, the proxy image, which provider
+  key is set, the database if configured, and with `--check-upstream` the provider itself), and says
+  how to fix each problem. It fails only when a run cannot work.
+- A request with `"stream": true` gets a clear 400 saying streaming is not supported yet, instead of
+  a misleading 502 "upstream error".
+
+### Benchmark fidelity
+- Harbor tasks' `[environment.env]` and `[verifier.env]` are applied (in the image and in the grading
+  container) instead of being silently dropped. A value that templates from the host (`${VAR}`) is
+  refused, because resolving it would pass the evaluating machine's environment into a trial.
+- A Harbor task's `verifier.timeout_sec` is honoured instead of a fixed 120 seconds.
+- `verifier_script` assertions gain `env` and `timeout_seconds`. Suites imported with an earlier
+  version keep working; re-importing them changes their task hashes.
+
 ## 0.2.0
 
 First release on PyPI, as `meridian-eval` (the command and import are still `meridian`).
