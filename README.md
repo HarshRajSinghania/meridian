@@ -14,14 +14,38 @@ meridian setup                # one-time: builds the model-proxy image (needs Do
 meridian --help
 ```
 
-Want to help? Start with a [`good first issue`](https://github.com/patsypppe/meridian/labels/good%20first%20issue)
-and read [CONTRIBUTING.md](CONTRIBUTING.md).
+## What it does
+
+- **Runs each task several times, each in its own locked-down container**, and grades the final state of
+  the environment from outside it, so an agent cannot game the check.
+- **Reports reliability as pass^k**: the chance the agent succeeds every time, not just once, with honest
+  confidence intervals for small suites.
+- **Blocks a pull request only when a drop is real**: it must clear both a tolerance and a significance
+  test, and every verdict says how small a regression the run could have detected.
+- **Works with real models and real benchmarks**: Claude or any OpenAI-compatible provider (Groq, vLLM,
+  Ollama) behind a proxy that keeps the key away from the agent, and tasks imported from Harbor's
+  format, such as Terminal-Bench 2.0.
+- **Never blames the agent for the infrastructure**: a provider rate limit or a broken grader is reported
+  as a harness error with its cause, not as the agent failing.
+
+[Showcase page](https://patsypppe.github.io/meridian/) · [Results dashboard](https://patsypppe.github.io/meridian/dashboard/) ·
+[PyPI](https://pypi.org/project/meridian-eval/) · [Changelog](CHANGELOG.md)
+
+## Help wanted: tests and contributors
+
+Meridian is young, and the most useful thing you can give it is **more tests**. Its whole job is to be
+trusted, so every untested path is a place it could quietly report the wrong number.
+
+- **[Issues labelled `tests`](https://github.com/patsypppe/meridian/labels/tests)**: specific gaps, each
+  naming the module, what to test, and when it is done. Many need no Docker at all.
+- **[`good first issue`](https://github.com/patsypppe/meridian/labels/good%20first%20issue)**: small,
+  well-scoped changes with the files to touch named in the issue.
+- **[`help wanted`](https://github.com/patsypppe/meridian/labels/help%20wanted)**: larger pieces nobody is on yet.
+
+New to the codebase? [CONTRIBUTING.md](CONTRIBUTING.md) explains setup, which tests to run, and how a
+pull request gets merged. Comment on an issue to claim it; questions in issues are welcome.
 
 **A harness that cannot measure itself has no standing to measure anything else.**
-
-**[See it on one page → patsypppe.github.io/meridian](https://patsypppe.github.io/meridian/)**: three real gate verdicts, the sensitivity explorer, the isolation model and the contamination probe, all drawn from real runs ([`site/data/`](site/data/)).
-
-[![A real gate verdict: per-task pass^3, the decision trace, the tolerance band and blind zone, and the paired bootstrap](docs/showcase.png)](https://patsypppe.github.io/meridian/)
 
 ## What has been measured, and on what
 
@@ -403,6 +427,13 @@ daemon. The rule is not a coverage percentage: **every function in those modules
 has both a passing case and a failing case.**
 
 ---
+
+## Contributing
+
+Contributions of any size are welcome, and tests most of all. Start with an issue labelled
+[`tests`](https://github.com/patsypppe/meridian/labels/tests) or
+[`good first issue`](https://github.com/patsypppe/meridian/labels/good%20first%20issue), and read
+[CONTRIBUTING.md](CONTRIBUTING.md). Please report security problems privately ([SECURITY.md](SECURITY.md)).
 
 ## Documentation
 
